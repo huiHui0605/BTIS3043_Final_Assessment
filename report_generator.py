@@ -196,14 +196,15 @@ class ReportGenerator:
         ws = wb.create_sheet(sheet_name)
 
         passed_full = sc_results[dataset_name]['passed_full']
-        passed_top = sc_results[dataset_name]['passed_top']
 
         # Predicate-only view: every record that passed, ordered the way
         # a simple non-fuzzy system would (by year, i.e. BaselineRank).
         df_pred = passed_full.sort_values(by='BaselineRank').reset_index(drop=True) if not passed_full.empty else passed_full
-        # Fuzzy-enhanced view: the (already limited) top records, ordered
-        # by their fuzzy rank instead.
-        df_fuzzy = passed_top.sort_values(by='FuzzyRank').reset_index(drop=True) if not passed_top.empty else passed_top
+        # Fuzzy-enhanced view: ALL records that passed the predicate,
+        # ordered by their fuzzy rank (highest fuzzy score first). The
+        # Excel workbook is the reproducible/complete record; the report
+        # itself will screenshot only the top few manually.
+        df_fuzzy = passed_full.sort_values(by='FuzzyRank').reset_index(drop=True) if not passed_full.empty else passed_full
 
         headers = ['Predicate_Rank'] + DATASET_COLUMNS[dataset_name]
         fuzzy_headers = ['Fuzzy_Rank'] + DATASET_COLUMNS[dataset_name]
@@ -220,18 +221,12 @@ class ReportGenerator:
         next_row = self.write_table_data(ws, pred_header_row, headers, df_pred, dataset_name)
 
         caption_row = next_row + 1
-        # Build a caption describing exactly what's shown in the second
-        # (fuzzy) table, since the display rule differs by dataset/
-        # scenario: Dataset A in Scenario 2 shows *all* matches (per the
-        # assessment's "display all relevant Current Subscription
-        # records" rule), everything else is capped at top_limit.
-        if dataset_name == 'A':
-            desc = "all matches (current subscription), ranked by Fuzzy_Score, descending" if sc_id == 2 \
-                else f"all matches, max {top_limit}, ranked by Fuzzy_Score, descending"
-        elif n_matches <= top_limit:
-            desc = f"all matches (only {n_matches} matches found), ranked by Fuzzy_Score, descending"
-        else:
-            desc = f"top {top_limit} (only {n_matches} matches found), ranked by Fuzzy_Score, descending"
+        # Caption describing the second (fuzzy) table. The workbook now
+        # exports every predicate-passed record (not just the report's
+        # display cap of top_limit), ranked by fuzzy score, so the sheet
+        # is the complete reproducible result; the report itself
+        # screenshots only the top few manually.
+        desc = f"all {n_matches} match(es), ranked by Fuzzy_Score, descending"
 
         cap2 = f"Fuzzy-enhanced results ({desc})"
         ws.cell(row=caption_row, column=1, value=cap2).font = CAPTION_FONT
